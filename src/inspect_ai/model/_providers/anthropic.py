@@ -5656,6 +5656,8 @@ def message_stop_reason(message: Message) -> tuple[StopReason, bool]:
             return "tool_calls", False
         case "max_tokens":
             return message.stop_reason, False
+        case "model_context_window_exceeded":
+            return "model_length", False
         case "refusal":
             return "content_filter", False
         case _:

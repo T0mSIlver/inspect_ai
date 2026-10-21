@@ -4207,3 +4207,20 @@ async def test_anthropic_output_records_message_id_as_response_id() -> None:
     )
 
     assert output.response_id == "msg_response"
+
+
+@pytest.mark.parametrize(
+    ("stop_reason", "expected"),
+    [
+        ("model_context_window_exceeded", ("model_length", False)),
+        ("max_tokens", ("max_tokens", False)),
+        ("pause_turn", ("unknown", True)),
+    ],
+)
+def test_message_stop_reason(stop_reason: str, expected: tuple[str, bool]) -> None:
+    from anthropic.types import Message
+
+    from inspect_ai.model._providers.anthropic import message_stop_reason
+
+    message = Message.model_construct(stop_reason=stop_reason)
+    assert message_stop_reason(message) == expected
