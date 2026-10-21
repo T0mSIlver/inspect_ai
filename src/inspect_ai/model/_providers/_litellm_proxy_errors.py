@@ -66,6 +66,7 @@ def litellm_error_model_output(
             model=model_name,
             content=upstream_message(message),
             stop_reason="model_length",
+            error=upstream_message(message),
         )
     policy_markers = CONTENT_POLICY_MARKERS + (XAI_REFUSAL_MARKERS if xai else ())
     if any(marker in lowered for marker in policy_markers):

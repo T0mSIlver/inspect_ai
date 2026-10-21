@@ -114,7 +114,10 @@ class DeepSeekAPI(OpenAICompatibleAPI):
         # you requested 1283793 tokens ..."
         if ex.status_code == 400 and "maximum context length" in ex.message:
             return ModelOutput.from_content(
-                model=self.model_name, content=ex.message, stop_reason="model_length"
+                model=self.model_name,
+                content=ex.message,
+                stop_reason="model_length",
+                error=ex.message,
             )
         return super().handle_bad_request(ex)
 

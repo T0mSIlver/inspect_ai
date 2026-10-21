@@ -24,6 +24,7 @@ from .util import (
     client_request_object,
     client_request_string,
     client_response_schema,
+    raise_if_prompt_too_long,
     resolve_bridge_model,
     resolve_generate_config,
     tool_choice_from_openai_string,
@@ -109,6 +110,7 @@ async def inspect_completions_api_request(
         requested_model=bridge_model_name,
         routing=routing,
     )
+    raise_if_prompt_too_long(bridge, output, "openai")
     if c_message is not None:
         messages.append(c_message)
 

@@ -1455,6 +1455,7 @@ class GoogleGenAIAPI(ModelAPI):
                 self.service_model_name(),
                 content=ex.message,
                 stop_reason="model_length",
+                error=ex.message,
             )
         elif ex.code == 400:
             return ex

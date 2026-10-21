@@ -186,6 +186,13 @@ def _unchanged(arguments: dict[str, Any]) -> dict[str, Any]:
 class AgentBridge:
     """Agent bridge."""
 
+    forwards_provider_errors: bool = False
+    """Whether a provider error reaches the client as an error response.
+
+    True for the sandbox bridge, whose model proxy turns a raised provider
+    error into an HTTP error in the client's dialect.
+    """
+
     def __init__(
         self,
         state: AgentState,

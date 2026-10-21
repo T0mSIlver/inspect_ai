@@ -546,6 +546,7 @@ class GroqAPI(ModelAPI):
                 model=self.model_name,
                 content=info.message,
                 stop_reason="model_length",
+                error=info.message,
             )
         return ex
 

@@ -439,6 +439,7 @@ class MistralAPI(ModelAPI):
                 model=self.service_model_name(),
                 content=content,
                 stop_reason="model_length",
+                error=content,
             )
         else:
             return ex

@@ -47,7 +47,11 @@ from inspect_ai.agent._bridge._approval import (
     bridge_approval_scope,
     terminate_for_repeated_rejections,
 )
-from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
+from inspect_ai.agent._bridge._errors import (
+    BridgePolicyError,
+    PromptTooLongError,
+    ResponseFilterError,
+)
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._assistant_internal import has_pending_assistant_work
@@ -1179,6 +1183,55 @@ def narrow_max_uses(current: Any, value: Any) -> Any:
 def narrow_to_false(current: Any, value: Any) -> Any:
     """A client turning an enabled option off (OpenAI `external_web_access`)."""
     return False if value is False and current is not False else None
+
+
+def raise_if_prompt_too_long(
+    bridge: AgentBridge,
+    output: ModelOutput,
+    dialect: Literal["anthropic", "openai", "google"],
+) -> None:
+    """Raise the client's own overflow error for a prompt the provider rejected.
+
+    Providers turn a context-window rejection into a `model_length` output with
+    `error` set and the provider's message as content. Passed through, the
+    client sees a cut-off answer (`max_tokens`/`length`) whose text is the error,
+    and retries with the same history instead of compacting it. A `model_length`
+    stop without `error` is a response that ran out of room mid-generation and
+    is passed through unchanged.
+
+    Only the sandbox bridge raises: its model proxy turns the error into an HTTP
+    400 in the client's dialect. In-process clients keep receiving the output.
+    """
+    if (
+        not bridge.forwards_provider_errors
+        or output.stop_reason != "model_length"
+        or not output.error
+    ):
+        return
+
+    message = output.completion or output.error
+    match dialect:
+        case "anthropic":
+            # Claude Code compacts on "prompt is too long"; Anthropic's own
+            # overflow messages pass through verbatim, as the API sent them.
+            if not any(
+                marker in message.lower()
+                for marker in ("prompt is too long", "exceed context limit")
+            ):
+                message = f"prompt is too long: {message}"
+            raise PromptTooLongError(message)
+        case "openai":
+            raise PromptTooLongError(
+                message,
+                body={
+                    "message": message,
+                    "type": "invalid_request_error",
+                    "param": None,
+                    "code": "context_length_exceeded",
+                },
+            )
+        case "google":
+            raise PromptTooLongError(message)
 
 
 async def bridge_generate(

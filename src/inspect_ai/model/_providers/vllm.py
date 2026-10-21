@@ -697,7 +697,10 @@ class VLLMAPI(OpenAICompatibleAPI):
                 or "max_tokens must be at least 1" in content
             ):
                 return ModelOutput.from_content(
-                    self.model_name, content=content, stop_reason="model_length"
+                    self.model_name,
+                    content=content,
+                    stop_reason="model_length",
+                    error=content,
                 )
         return ex
 

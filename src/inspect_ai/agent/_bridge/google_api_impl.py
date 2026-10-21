@@ -58,6 +58,7 @@ from .util import (
     client_json_schema,
     client_request_object,
     client_request_string,
+    raise_if_prompt_too_long,
     relax_tool_choice_for_withheld,
     resolve_bridge_model,
     resolve_generate_config,
@@ -166,6 +167,7 @@ async def inspect_google_api_request_impl(
         requested_model=client_model if client_model is not None else requested_model,
         routing=routing,
     )
+    raise_if_prompt_too_long(bridge, output, "google")
     if c_message is not None:
         messages.append(c_message)
 

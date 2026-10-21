@@ -512,6 +512,7 @@ async def test_groq_mid_stream_context_length_error_converts(
         assert isinstance(output, ModelOutput)
         assert output.choices[0].stop_reason == "model_length"
         assert "reduce the length" in output.completion
+        assert output.error == output.completion
         assert model_call.error is True
         assert model_call.response == dict(
             message="Please reduce the length of the messages or completion.",

@@ -91,6 +91,7 @@ def test_grok_context_overflow_maps_to_model_length(details: str) -> None:
     assert isinstance(output, ModelOutput)
     assert output.stop_reason == "model_length"
     assert output.completion == details
+    assert output.error == details
 
 
 def test_grok_unrelated_bad_request_is_returned_as_error() -> None:

@@ -143,7 +143,10 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             content = str(response)
         if "max_new_tokens" in ex.message or "context length" in ex.message:
             return ModelOutput.from_content(
-                model=self.model_name, content=content, stop_reason="model_length"
+                model=self.model_name,
+                content=content,
+                stop_reason="model_length",
+                error=content,
             )
         else:
             return ex

@@ -584,7 +584,10 @@ class OpenAICompatibleAPI(ModelAPI):
             content = str(ex)
             if "input length" in content:
                 return ModelOutput.from_content(
-                    self.model_name, content=content, stop_reason="model_length"
+                    self.model_name,
+                    content=content,
+                    stop_reason="model_length",
+                    error=content,
                 )
 
         return openai_handle_bad_request(self.service_model_name(), ex)

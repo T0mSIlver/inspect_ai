@@ -178,6 +178,7 @@ from .util import (
     client_tool_options,
     eval_tool_options,
     narrow_to_false,
+    raise_if_prompt_too_long,
     relax_tool_choice_for_withheld,
     resolve_bridge_model,
     resolve_generate_config,
@@ -412,6 +413,7 @@ async def inspect_responses_api_request_impl(
         routing=routing,
         finalize_config=with_client_reasoning,
     )
+    raise_if_prompt_too_long(bridge, output, "openai")
     if c_message is not None:
         messages.append(c_message)
 

@@ -934,6 +934,7 @@ class BedrockAPI(ModelAPI):
                                     model=self.model_name,
                                     content=error_message,
                                     stop_reason="model_length",
+                                    error=error_message,
                                 ),
                                 model_call,
                             )

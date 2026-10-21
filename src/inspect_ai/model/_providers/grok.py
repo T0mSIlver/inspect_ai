@@ -548,7 +548,10 @@ class GrokAPI(ModelAPI):
             marker in details_lower for marker in ("prompt length", "input_too_large")
         ):
             return ModelOutput.from_content(
-                model=self.model_name, content=details, stop_reason="model_length"
+                model=self.model_name,
+                content=details,
+                stop_reason="model_length",
+                error=details,
             )
         else:
             return ex

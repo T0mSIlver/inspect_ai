@@ -53,6 +53,8 @@ _MAX_TOOL_EXECUTION_GRANTS = 1024
 class SandboxAgentBridge(AgentBridge):
     """Sandbox agent bridge."""
 
+    forwards_provider_errors = True
+
     def __init__(
         self,
         state: AgentState,

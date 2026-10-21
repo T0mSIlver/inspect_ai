@@ -545,6 +545,7 @@ class AzureAIAPI(ModelAPI):
                     model=self.model_name,
                     content=response,
                     stop_reason="model_length",
+                    error=response,
                 )
             elif ex.status_code == 400:
                 return ex

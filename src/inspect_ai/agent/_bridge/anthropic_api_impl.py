@@ -94,6 +94,7 @@ from .util import (
     client_tool_options,
     eval_tool_options,
     narrow_max_uses,
+    raise_if_prompt_too_long,
     relax_tool_choice_for_withheld,
     resolve_bridge_model,
     resolve_generate_config,
@@ -201,6 +202,7 @@ async def inspect_anthropic_api_request_impl(
         requested_model=bridge_model_name,
         routing=routing,
     )
+    raise_if_prompt_too_long(bridge, output, "anthropic")
     if c_message is not None:
         messages.append(c_message)
 

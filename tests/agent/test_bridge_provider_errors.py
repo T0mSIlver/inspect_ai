@@ -2456,3 +2456,169 @@ def test_enclosing_time_limit_during_bridge_shutdown_wins(
     [error] = outcome.outer_errors
     assert error is not None and error.type == "time"
     _assert_error_replies(outcome.replies)
+
+
+# ---------- prompt rejected for its length ----------
+
+PROMPT_TOO_LONG = "prompt is too long: 210000 tokens > 200000 maximum"
+
+
+def _overflow_bridge(output: ModelOutput) -> SandboxAgentBridge:
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": get_model("mockllm/model", custom_outputs=[output])},
+    )
+
+
+def _rejected(message: str = PROMPT_TOO_LONG) -> ModelOutput:
+    """What a provider returns for a prompt it rejected as too long."""
+    return ModelOutput.from_content(
+        model="mockllm/model",
+        content=message,
+        stop_reason="model_length",
+        error=message,
+    )
+
+
+def _generate(dialect: str, bridge: SandboxAgentBridge) -> Any:
+    none_providers = (
+        cast(WebSearchProviders, None),
+        cast(CodeExecutionProviders, None),
+    )
+    match dialect:
+        case "anthropic":
+            return bridge_service.generate_anthropic(*none_providers, bridge)
+        case "completions":
+            return bridge_service.generate_completions(bridge)
+        case "responses":
+            return bridge_service.generate_responses(*none_providers, bridge)
+        case _:
+            return bridge_service.generate_google(*none_providers, bridge)
+
+
+_REQUESTS: dict[str, dict[str, JsonValue]] = {
+    "anthropic": {
+        "model": "inspect",
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": "hello"}],
+    },
+    "completions": {
+        "model": "inspect",
+        "messages": [{"role": "user", "content": "hello"}],
+    },
+    "responses": {"model": "inspect", "input": "hello"},
+    "google": {
+        "model": "inspect",
+        "contents": [{"role": "user", "parts": [{"text": "hello"}]}],
+    },
+}
+
+
+async def test_rejected_prompt_reaches_anthropic_client_as_prompt_too_long() -> None:
+    """Claude Code compacts on a 400 'prompt is too long', not on a max_tokens stop."""
+    bridge = _overflow_bridge(_rejected())
+    generate = _forward_provider_errors(_generate("anthropic", bridge), bridge)
+
+    result = await generate(_REQUESTS["anthropic"])
+
+    assert result == {PROVIDER_ERROR_KEY: {"status": 400, "message": PROMPT_TOO_LONG}}
+
+
+async def test_rejected_prompt_from_another_provider_keeps_anthropic_prefix() -> None:
+    message = "This model's maximum context length is 128000 tokens."
+    bridge = _overflow_bridge(_rejected(message))
+    generate = _forward_provider_errors(_generate("anthropic", bridge), bridge)
+
+    result = await generate(_REQUESTS["anthropic"])
+
+    assert result == {
+        PROVIDER_ERROR_KEY: {"status": 400, "message": f"prompt is too long: {message}"}
+    }
+
+
+async def test_anthropic_output_budget_rejection_passes_through_verbatim() -> None:
+    message = (
+        "input length and `max_tokens` exceed context limit: 190000 + 32000 > "
+        "200000, decrease input length or `max_tokens` and try again"
+    )
+    bridge = _overflow_bridge(_rejected(message))
+    generate = _forward_provider_errors(_generate("anthropic", bridge), bridge)
+
+    result = await generate(_REQUESTS["anthropic"])
+
+    assert result == {PROVIDER_ERROR_KEY: {"status": 400, "message": message}}
+
+
+@pytest.mark.parametrize("dialect", ["completions", "responses"])
+async def test_rejected_prompt_reaches_openai_client_as_context_length_exceeded(
+    dialect: str,
+) -> None:
+    """Codex and other OpenAI clients key on `code: context_length_exceeded`."""
+    message = "This model's maximum context length is 128000 tokens."
+    bridge = _overflow_bridge(_rejected(message))
+    generate = _forward_provider_errors(_generate(dialect, bridge), bridge)
+
+    result = await generate(_REQUESTS[dialect])
+
+    assert result == {
+        PROVIDER_ERROR_KEY: {
+            "status": 400,
+            "message": message,
+            "body": {
+                "message": message,
+                "type": "invalid_request_error",
+                "param": None,
+                "code": "context_length_exceeded",
+            },
+        }
+    }
+
+
+async def test_rejected_prompt_reaches_google_client_as_invalid_argument() -> None:
+    message = "The input token count exceeds the maximum number of tokens allowed."
+    bridge = _overflow_bridge(_rejected(message))
+    generate = _forward_provider_errors(_generate("google", bridge), bridge)
+
+    result = await generate(_REQUESTS["google"])
+
+    assert result == {PROVIDER_ERROR_KEY: {"status": 400, "message": message}}
+
+
+async def test_model_length_stop_without_error_is_passed_through() -> None:
+    """A response that ran out of context mid-generation is not a rejection."""
+    output = ModelOutput.from_content(
+        model="mockllm/model", content="partial answer", stop_reason="model_length"
+    )
+    bridge = _overflow_bridge(output)
+
+    result = await _generate("anthropic", bridge)(_REQUESTS["anthropic"])
+
+    assert result["stop_reason"] == "max_tokens"
+
+
+async def test_rejected_prompt_is_returned_to_in_process_clients() -> None:
+    """Only the sandbox bridge raises; an in-process client keeps the output."""
+    from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
+    from inspect_ai.agent._bridge.types import AgentBridge
+
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        model_aliases={
+            "inspect": get_model("mockllm/model", custom_outputs=[_rejected()])
+        },
+    )
+
+    message = await inspect_anthropic_api_request(
+        cast(dict[str, Any], _REQUESTS["anthropic"]),
+        None,
+        cast(WebSearchProviders, None),
+        cast(CodeExecutionProviders, None),
+        bridge,
+    )
+
+    assert message.stop_reason == "max_tokens"

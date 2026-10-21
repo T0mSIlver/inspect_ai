@@ -1690,6 +1690,7 @@ def openai_refusal_model_output(
             content=content,
             stop_reason=stop_reason,
             stop_details=stop_details,
+            error=content if stop_reason == "model_length" else None,
         )
     else:
         return None

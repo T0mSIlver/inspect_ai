@@ -42,6 +42,25 @@ class ResponseFilterError(Exception):
     """
 
 
+class PromptTooLongError(Exception):
+    """The provider rejected a bridged request whose prompt exceeds the context window.
+
+    Raised instead of returning the provider's `model_length` output to the
+    client, so the scaffold gets the overflow error its own API would send and
+    can compact its history (a `max_tokens` stop reads as a cut-off answer and
+    is retried with the same oversized context). `message` and `body` are in the
+    client's dialect; `body` is forwarded to OpenAI-dialect clients, which read
+    `code` from it.
+    """
+
+    status_code = 400
+
+    def __init__(self, message: str, body: JsonValue | None = None) -> None:
+        super().__init__(message)
+        self.provider_message = message
+        self.body = body
+
+
 class ProviderErrorPayload(TypedDict):
     """Forwardable provider-error detail carried under `PROVIDER_ERROR_KEY`."""
 
@@ -69,6 +88,9 @@ def provider_error_payload(ex: Exception) -> ProviderErrorPayload:
 
     message = getattr(ex, "provider_message", None) or str(ex)
     payload = ProviderErrorPayload(status=status_code_of(ex), message=message)
+    if isinstance(ex, PromptTooLongError) and ex.body is not None:
+        payload["body"] = ex.body
+        return payload
 
     try:
         from openai import APIStatusError

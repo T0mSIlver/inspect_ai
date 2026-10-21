@@ -1092,3 +1092,23 @@ async def test_skip_if_no_openai_model_propagates_other_errors(
         with pytest.raises(type(error)):
             await gated()
     assert [c.closed for c in clients] == [True, True]
+
+
+def test_openai_context_length_exceeded_marks_output_as_error() -> None:
+    """A rejected prompt is a model_length output with the rejection as its error."""
+    from inspect_ai.model._openai import openai_refusal_model_output
+
+    message = "This model's maximum context length is 128000 tokens."
+    output = openai_refusal_model_output(
+        "gpt-test", "context_length_exceeded", "invalid_request_error", message
+    )
+    assert output is not None
+    assert output.stop_reason == "model_length"
+    assert output.error == message
+
+    refusal = openai_refusal_model_output(
+        "gpt-test", "content_filter", "invalid_request_error", "blocked"
+    )
+    assert refusal is not None
+    assert refusal.stop_reason == "content_filter"
+    assert refusal.error is None
