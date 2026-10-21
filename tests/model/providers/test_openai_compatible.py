@@ -1141,3 +1141,50 @@ def test_openrouter_resolve_stream_declines_reasoning() -> None:
         assert thinking.resolve_stream(GenerateConfig()) is False
         # reasoning explicitly disabled wins over effort/tokens
         assert openrouter_api(reasoning_enabled=False).resolve_stream(effort) is True
+
+
+@pytest.mark.parametrize(
+    ("model_name", "message"),
+    [
+        (
+            "deepseek/deepseek-chat",
+            "This model's maximum context length is 1048576 tokens. However, "
+            "you requested 1283793 tokens",
+        ),
+        (
+            "moonshot/kimi-k2",
+            "Invalid request: Your request exceeded model token limit: 262144 "
+            "(requested: 425573)",
+        ),
+        ("vllm/model", "This model's maximum context length is 32768 tokens."),
+        (
+            "sglang/model",
+            "Requested token count exceeds the model's maximum context length.",
+        ),
+        ("together/model", "Input validation error: context length exceeded"),
+        ("openai-api/acme/model", "Input length 9000 exceeds maximum input length"),
+    ],
+)
+def test_context_window_rejection_is_marked_as_error(
+    monkeypatch: pytest.MonkeyPatch, model_name: str, message: str
+) -> None:
+    """A rejected prompt is a model_length output with the rejection as its error."""
+    monkeypatch.setenv("ACME_API_KEY", "test-key")
+    model = get_model(
+        model_name, api_key="test-key", base_url="http://127.0.0.1:9/v1", memoize=False
+    )
+    ex = APIStatusError(
+        message,
+        response=httpx2.Response(
+            400,
+            request=httpx2.Request("POST", "http://127.0.0.1:9/v1/chat/completions"),
+            json={"error": {"message": message}},
+        ),
+        body={"message": message},
+    )
+
+    output = model.api.handle_bad_request(ex)  # type: ignore[attr-defined]
+
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "model_length"
+    assert output.error

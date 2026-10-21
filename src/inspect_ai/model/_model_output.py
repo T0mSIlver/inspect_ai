@@ -305,7 +305,12 @@ class ModelOutput(BaseModel):
     """Additional metadata associated with model output."""
 
     error: str | None = Field(default=None)
-    """Error message in the case of content moderation refusals."""
+    """Error message when the provider refused or rejected the request.
+
+    Set for content moderation refusals and for prompts rejected as too long
+    for the context window (`stop_reason="model_length"`). The agent bridge
+    reads it to tell a rejected prompt from a response that ran out of room.
+    """
 
     response_id: str | None = Field(default=None)
     """Provider id for the response (e.g. `resp_...`, `chatcmpl-...`, `msg_...`)."""
